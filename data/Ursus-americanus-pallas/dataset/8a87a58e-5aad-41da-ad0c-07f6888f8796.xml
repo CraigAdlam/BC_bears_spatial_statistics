@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<eml:eml xmlns:eml="eml://ecoinformatics.org/eml-2.1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="eml://ecoinformatics.org/eml-2.1.1 http://rs.gbif.org/schema/eml-gbif-profile/1.2/eml.xsd"
+packageId="8a87a58e-5aad-41da-ad0c-07f6888f8796"  system="http://gbif.org" scope="system"
+xml:lang="en">
+
+    <dataset>
+            <alternateIdentifier>10.15468/7mp2c4</alternateIdentifier>
+                <alternateIdentifier>https://csvcoll.org/portal/collections/misc/collprofiles.php?collid=1059</alternateIdentifier>
+        <title>University of Wisconsin Stevens Point Mammals</title>
+            <creator>
+<organizationName>CSVColl Portal</organizationName><electronicMailAddress>egbot@asu.edu</electronicMailAddress><onlineUrl>https://csvcoll.org/portal/index.php</onlineUrl>            </creator>
+            <metadataProvider>
+<organizationName>CSVColl Portal</organizationName><electronicMailAddress>egbot@asu.edu</electronicMailAddress><onlineUrl>https://csvcoll.org/portal/index.php</onlineUrl>            </metadataProvider>
+            <associatedParty>
+            <individualName>
+                    <surName>Christopher Yahnke</surName>
+            </individualName>
+<electronicMailAddress>cyahnke@uwsp.edu</electronicMailAddress>            <role>CONTENT_PROVIDER</role>
+            </associatedParty>
+            <pubDate>
+                2024-04-03
+            </pubDate>
+        <language>ENGLISH</language>
+            <abstract>
+                    <para>UWSP has the second largest mammal collection in Wisconsin. The approximately 10,000 specimens consists primarily of study skins and skeletal material with a small number of fluid specimens and frozen tissue.</para>
+            </abstract>
+            <intellectualRights>
+                    <para>This work is licensed under a <ulink url="http://creativecommons.org/licenses/by/4.0/legalcode"><citetitle>Creative Commons Attribution (CC-BY) 4.0 License</citetitle></ulink>.</para>
+            </intellectualRights>
+            <contact>
+<organizationName>University of Wisconsin Stevens Point Mammals</organizationName><electronicMailAddress>cyahnke@uwsp.edu</electronicMailAddress><onlineUrl>https://www.uwsp.edu/wildlife/Pages/Faculty/yahnke.aspx</onlineUrl>            </contact>
+
+    </dataset>
+
+    <additionalMetadata>
+        <metadata>
+            <gbif>
+                <dateStamp>2024-04-15T09:24:15Z</dateStamp>
+                <citation>University of Wisconsin – Stevens Point (2024). University of Wisconsin Stevens Point Mammals. Occurrence dataset https://doi.org/10.15468/7mp2c4 accessed via GBIF.org on 2024-04-15.</citation>
+            </gbif>
+        </metadata>
+    </additionalMetadata>
+
+</eml:eml>
