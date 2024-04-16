@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<eml:eml xmlns:eml="eml://ecoinformatics.org/eml-2.1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="eml://ecoinformatics.org/eml-2.1.1 http://rs.gbif.org/schema/eml-gbif-profile/1.2/eml.xsd"
+packageId="7d6fccd6-0489-4c02-bc39-3500afcbe9fe"  system="http://gbif.org" scope="system"
+xml:lang="en">
+
+    <dataset>
+            <alternateIdentifier>10.15468/q6bgsq</alternateIdentifier>
+                <alternateIdentifier>http://id.zfmk.de/dataset_ZFMK/271136</alternateIdentifier>
+        <title>ZMH Mammalia collection</title>
+            <creator>
+            <individualName>
+                    <surName>Prof. Dr. Thomas M. Kaiser</surName>
+            </individualName>
+            <address>
+<deliveryPoint>Martin-Luther-King-Platz 3 20146 Hamburg, Germany</deliveryPoint>            </address>
+<phone>+49 (0) 40238317623</phone><electronicMailAddress>t.kaiser@leibniz-lib.de</electronicMailAddress>            </creator>
+            <associatedParty>
+            <individualName>
+                    <surName>LIB Biodiversity Datacenter</surName>
+            </individualName>
+            <address>
+<deliveryPoint>Leibniz Institute for the Analysis of Biodiversity Change - Adenauerallee 127, 53113 Bonn, Germany</deliveryPoint>            </address>
+<phone>+49 (0) 2289122342</phone><electronicMailAddress>datacenter@leibniz-lib.de</electronicMailAddress>            <role>TECHNICAL_POINT_OF_CONTACT</role>
+            </associatedParty>
+        <language>en</language>
+            <abstract>
+                    <para>The mammalian collection at the LIB/Museum of Nature Hamburg comprises about 10,000 skeletons and 3,000 skins, supplemented by 5,000 specimens stored in alcohol, rendering it one of the most important in Germany. In particular, this latter section of the collection is of importance as it comprises historical material, including organs and embryos, while the dry collection was completely destroyed in the former Natural History Museum building in 1943. About 16,000 specimens are digitalized, with next to all skins this comprises about 95% of the skeletons, 80% of the wet material, and 60% of the histological sections. The focus of the collection is on hoofed animals, African primates, and marine mammals, with post-war collections of larger mammals, represented by skulls and mostly complete post-cranial skeletons, and from taxa that are hardly retrievable today from their natural habitats. The collection comprises material derived from major expeditions to India and Angola as well as other parts of Africa in the 1950s to 1960s, e.g. from Manfred Röhrs and Henriette Oboussier, with large and complete series of bovid material.</para>
+            </abstract>
+            <intellectualRights>
+                    <para>This work is licensed under a <ulink url="http://creativecommons.org/licenses/by/4.0/legalcode"><citetitle>Creative Commons Attribution (CC-BY) 4.0 License</citetitle></ulink>.</para>
+            </intellectualRights>
+            <distribution scope="document">
+                <online>
+                    <url function="information">https://hamburg.leibniz-lib.de/en/sammlungen/zoologie/mammalogie.html</url>
+                </online>
+            </distribution>
+            <contact>
+            <individualName>
+                    <surName>Prof. Dr. Thomas M. Kaiser</surName>
+            </individualName>
+            <address>
+<deliveryPoint>Martin-Luther-King-Platz 3 20146 Hamburg, Germany</deliveryPoint>            </address>
+<phone>+49 (0) 40238317623</phone><electronicMailAddress>t.kaiser@leibniz-lib.de</electronicMailAddress>            </contact>
+
+    </dataset>
+
+    <additionalMetadata>
+        <metadata>
+            <gbif>
+                <dateStamp>2024-04-15T09:24:17Z</dateStamp>
+                <citation>Leibniz Institute for the Analysis of Biodiversity Change (LIB). ZMH Mammalia collection. Occurrence dataset https://doi.org/10.15468/q6bgsq accessed via GBIF.org on 2024-04-15.</citation>
+                    <resourceLogoUrl>https://leibniz-lib.de/wp-content/themes/lib-leibniz/img/logo-en.svg</resourceLogoUrl>
+            </gbif>
+        </metadata>
+    </additionalMetadata>
+
+</eml:eml>

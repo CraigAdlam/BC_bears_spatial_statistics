@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<eml:eml xmlns:eml="eml://ecoinformatics.org/eml-2.1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="eml://ecoinformatics.org/eml-2.1.1 http://rs.gbif.org/schema/eml-gbif-profile/1.2/eml.xsd"
+packageId="7dceb7ba-27ba-4b81-b0fb-0084cb1c6541"  system="http://gbif.org" scope="system"
+xml:lang="en">
+
+    <dataset>
+            <alternateIdentifier>10.15468/e7cdux</alternateIdentifier>
+                <alternateIdentifier>https://ipt.vertnet.org/resource?r=almnh_mamm</alternateIdentifier>
+                <alternateIdentifier>7dceb7ba-27ba-4b81-b0fb-0084cb1c6541</alternateIdentifier>
+                <alternateIdentifier>http://ipt.vertnet.org:8080/ipt/resource?r=almnh_mamm</alternateIdentifier>
+        <title>Alabama Museum of Natural History Mammal Specimens (Arctos)</title>
+            <creator>
+            <individualName>
+<givenName>Brooke</givenName>                    <surName>Bogan</surName>
+            </individualName>
+<organizationName>Alabama Museum of Natural History</organizationName><positionName>Collections Manager</positionName><electronicMailAddress>brookeabogan@gmail.com</electronicMailAddress><onlineUrl>https://almnh.museums.ua.edu/</onlineUrl>            </creator>
+            <metadataProvider>
+            <individualName>
+<givenName>Brooke</givenName>                    <surName>Bogan</surName>
+            </individualName>
+<organizationName>Alabama Museum of Natural History</organizationName><positionName>Collections Manager</positionName><electronicMailAddress>brookeabogan@gmail.com</electronicMailAddress><onlineUrl>https://almnh.museums.ua.edu/</onlineUrl>            </metadataProvider>
+            <associatedParty>
+            <individualName>
+<givenName>David</givenName>                    <surName>Bloom</surName>
+            </individualName>
+<organizationName>VertNet</organizationName><positionName>VertNet Coordinator</positionName><electronicMailAddress>dbloom@vertnet.org</electronicMailAddress><onlineUrl>http://www.vertnet.org</onlineUrl>            <role>PROGRAMMER</role>
+            </associatedParty>
+            <associatedParty>
+            <individualName>
+<givenName>John</givenName>                    <surName>Wieczorek</surName>
+            </individualName>
+<organizationName>VertNet</organizationName><positionName>Information Architect</positionName><electronicMailAddress>tuco@berkeley.edu</electronicMailAddress><onlineUrl>http://www.vertnet.org</onlineUrl>            <role>PROGRAMMER</role>
+            </associatedParty>
+            <associatedParty>
+            <individualName>
+<givenName>John</givenName>                    <surName>Abbott</surName>
+            </individualName>
+<organizationName>University of Alabama Museums</organizationName><positionName>Director of Museum Research and Collections</positionName><electronicMailAddress>jabbott1@ua.edu</electronicMailAddress>            <role>CURATOR</role>
+            </associatedParty>
+            <pubDate>
+                2024-04-12
+            </pubDate>
+        <language>ENGLISH</language>
+            <abstract>
+                    <para>The Alabama Museum of Natural History&amp;#39;s Mammal collection contains numerous series of small Alabama mammals such as rodents, shrews and bats that are available for research. More than 3000 specimens, including study skins, skulls and taxidermy, are represented in its holdings.Many of the specimens were collected in the 1950’s and 60’s through the Department of Biological Sciences. Several collections of big game trophy heads were acquired from five different donors comprising an eclectic mix of sheep, antelope and other hoofed mammals.Some full mounts of African and North American mammals also exist.</para>
+            </abstract>
+                <keywordSet>
+                        <keyword>Occurrence</keyword>
+                        <keywordThesaurus>GBIF Dataset Type Vocabulary: http://rs.gbif.org/vocabulary/gbif/dataset_type.xml</keywordThesaurus>
+                </keywordSet>
+                <keywordSet>
+                        <keyword>Specimen</keyword>
+                        <keywordThesaurus>GBIF Dataset Type Vocabulary: http://rs.gbif.org/vocabulary/gbif/dataset_type.xml</keywordThesaurus>
+                </keywordSet>
+                <keywordSet>
+                        <keyword>Occurrence</keyword>
+                        <keywordThesaurus>GBIF Dataset Type Vocabulary: http://rs.gbif.org/vocabulary/gbif/dataset_type_2015-07-10.xml</keywordThesaurus>
+                </keywordSet>
+                <keywordSet>
+                        <keyword>Specimen</keyword>
+                        <keywordThesaurus>GBIF Dataset Subtype Vocabulary: http://rs.gbif.org/vocabulary/gbif/dataset_subtype.xml</keywordThesaurus>
+                </keywordSet>
+            <additionalInfo>
+                <para>Arctos Data Ownership and Use: http://arctosdb.org/home/data/; http://vertnet.org/resources/norms.html</para>
+            </additionalInfo>
+            <intellectualRights>
+                    <para>This work is licensed under a <ulink url="http://creativecommons.org/licenses/by-nc/4.0/legalcode"><citetitle>Creative Commons Attribution Non Commercial (CC-BY-NC) 4.0 License</citetitle></ulink>.</para>
+            </intellectualRights>
+            <distribution scope="document">
+                <online>
+                    <url function="information">https://collections.museums.ua.edu/collections/</url>
+                </online>
+            </distribution>
+            <coverage>
+                    <geographicCoverage>
+                            <geographicDescription>Geographically, most specimens originate from Alabama, with some specimens collected from the Northeastern US. Several collections of big game trophy heads were acquired from five different donors comprising a global eclectic mix of sheep, antelope and other hoofed mammals.  Some full mounts of African and North American mammals also exist.</geographicDescription>
+                            <boundingCoordinates>
+                                <westBoundingCoordinate>-180</westBoundingCoordinate>
+                                <eastBoundingCoordinate>180</eastBoundingCoordinate>
+                                <northBoundingCoordinate>90</northBoundingCoordinate>
+                                <southBoundingCoordinate>-90</southBoundingCoordinate>
+                            </boundingCoordinates>
+                    </geographicCoverage>
+                        <taxonomicCoverage>
+                                <generalTaxonomicCoverage>Mammals</generalTaxonomicCoverage>
+                                <taxonomicClassification>
+                                        <taxonRankName>Class</taxonRankName>
+                                    <taxonRankValue>Mammalia</taxonRankValue>
+                                        <commonName>Mammals</commonName>
+                                </taxonomicClassification>
+                        </taxonomicCoverage>
+            </coverage>
+            <purpose>
+                <para>Natural History Research and Education</para>
+            </purpose>
+            <maintenance>
+                <description>
+                    <para></para>
+                </description>
+                <maintenanceUpdateFrequency>monthly</maintenanceUpdateFrequency>
+            </maintenance>
+            <contact>
+            <individualName>
+<givenName>Brooke</givenName>                    <surName>Bogan</surName>
+            </individualName>
+<organizationName>Alabama Museum of Natural History</organizationName><positionName>Collections Manager</positionName><electronicMailAddress>brookeabogan@gmail.com</electronicMailAddress><onlineUrl>https://almnh.museums.ua.edu/</onlineUrl>            </contact>
+            <methods>
+                    <methodStep>
+                        <description>
+                            <para></para>
+                        </description>
+                    </methodStep>
+            </methods>
+
+    </dataset>
+
+    <additionalMetadata>
+        <metadata>
+            <gbif>
+                <dateStamp>2024-04-15T09:24:23Z</dateStamp>
+                <citation>Bogan B (2024). Alabama Museum of Natural History Mammal Specimens (Arctos). Version 1.17. Alabama Museum of Natural History. Occurrence dataset https://doi.org/10.15468/e7cdux accessed via GBIF.org on 2024-04-15.</citation>
+                        <collection>
+                            <parentCollectionIdentifier>ALMNH</parentCollectionIdentifier>
+                            <collectionIdentifier>https://arctos.database.museum/collection/ALMNH:Mamm</collectionIdentifier>
+                            <collectionName>Alabama Museum of Natural History Mammal specimens</collectionName>
+                        </collection>
+                        <specimenPreservationMethod>OTHER</specimenPreservationMethod>
+                    <livingTimePeriod>Late 1800&apos;s to late 1900&apos;s</livingTimePeriod>
+            </gbif>
+        </metadata>
+    </additionalMetadata>
+
+</eml:eml>
