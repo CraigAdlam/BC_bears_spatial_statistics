@@ -1,0 +1,1545 @@
+---
+title: "University of British Columbia - Okanagan"
+author: "Craig Adlam (48226583)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 589 - Spatial Statistics
+
+## Group Project
+
+### Species Spatial Exploratory Analysis (Black Bears)
+
+### Load Covariate Dataset and Black Bear Occurrences
+```{r}
+# Load the second .Rda file into a variable
+load("BC_Parks.Rda")
+data_parks <- DATA
+
+# Load the first .Rda file into a variable
+load("BC_Covariates.Rda")
+data_covariates <- DATA
+
+# Read the file with read.table and fill missing values
+data_bears <- read.table("occurrence.txt", header = TRUE, sep = "\t", fill = TRUE)
+
+# View the data to check if it was loaded correctly
+# View(data_bears)
+dim(data_bears)
+# [1] 4331  223
+```
+
+### Explore the Covariate Data
+```{r}
+sapply(data_covariates, class)
+summary(data_covariates)
+# str(data_covariates)
+```
+
+### Plot the Window and Image Class Objects
+```{r fig.height=8, fig.width=6}
+library(spatstat)
+par(mfrow = c(3,2))
+plot(data_covariates$Window)
+plot(data_covariates$Elevation)
+plot(data_covariates$Forest)
+plot(data_covariates$HFI)
+plot(data_covariates$Dist_Water)
+```
+
+### Filter Data to only Include Black Bears in British Columbia
+```{r}
+# Filter the data to only include black bears in British Columbia
+data_bears_BC <- subset(data_bears, stateProvince == "British Columbia")
+# View(data_bears_BC)
+dim(data_bears_BC)
+# [1] 1916  223
+bears_BC_percent <- (dim(data_bears_BC)[1] / dim(data_bears)[1]) * 100
+cat(bears_BC_percent, "% of black bear sightings across Canada occurred in BC.")
+```
+
+After filtering for BC, reduced black bear occurrences from 4331 to 1916 (2415 removed)
+
+### Remove Missing Longitude ("X") and Latitude ("Y") Rows
+```{r}
+library(sf)
+
+# Filter out rows with missing coordinates
+complete_rows <- complete.cases(data_bears_BC$decimalLongitude, data_bears_BC$decimalLatitude)
+data_bears_BC_clean <- data_bears_BC[complete_rows, ]
+
+# Ensure that the coordinates are numeric
+data_bears_BC_clean$decimalLongitude <- as.numeric(data_bears_BC_clean$decimalLongitude)
+data_bears_BC_clean$decimalLatitude <- as.numeric(data_bears_BC_clean$decimalLatitude)
+
+# Remove rows with missing values in the coordinates
+data_bears_BC_clean <- na.omit(data_bears_BC_clean[, c("decimalLongitude", "decimalLatitude")])
+
+# Convert the cleaned data frame to an sf object
+data_sf <- st_as_sf(data_bears_BC_clean, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+
+# Define the target projection
+projected_args <- "+proj=aea +lat_0=45 +lon_0=-126 +lat_1=50 +lat_2=58.5 +x_0=1000000 +y_0=0 +datum=NAD83 +units=m +no_defs"
+
+# Transform the coordinates
+data_bears_BC_projected <- st_transform(data_sf, crs = projected_args)
+# View(data_bears_BC_projected)
+dim(data_bears_BC_projected)
+missing_coords_percent <- ((dim(data_bears_BC)[1] - dim(data_bears_BC_projected)[1]) / dim(data_bears_BC)[1]) * 100
+# [1] 1885  222
+cat(missing_coords_percent, "% of the occurences in BC were missing coordinates.")
+```
+
+After removing rows with missing coordinates, reduced from 1916 to 1885 (31 missing).
+
+### Remove Misclassified Black Bear Occurrences Outside of BC and Duplicates
+```{r}
+library(maptools)
+library(spatstat)
+
+# Extract the projected coordinates from the sf object
+projected_coords <- st_coordinates(data_bears_BC_projected)
+
+# projected_coords <- data.frame(x = projected_coords[inside_window, "X"], 
+#                                y = projected_coords[inside_window, "Y"])
+
+# Convert the window to an owin object
+window <- as.owin.SpatialPolygons(data_covariates$Window)
+
+# Adjust buffer to determine if illegal points lie outside the window (could only find 3)
+buffer <- 100 # 10000000 includes the 3 misclassified bears way over in Quebec
+
+# Filter out points outside the window
+inside_window <- projected_coords[, "X"] >= window$xrange[1] - buffer & 
+                 projected_coords[, "X"] <= window$xrange[2] + buffer &
+                 projected_coords[, "Y"] >= window$yrange[1] - buffer &
+                 projected_coords[, "Y"] <= window$yrange[2] + buffer
+
+# Create a ppp object from the projected coordinates inside the window # -------- PLOTS ILLEGAL POINTS
+ppp_bears <- ppp(x = projected_coords[inside_window, "X"],
+                 y = projected_coords[inside_window, "Y"],
+                 window = window, checkdup = FALSE)
+
+# Remove duplicates
+ppp_bears <- ppp_bears[!duplicated(ppp_bears), ]
+
+misclass_dup_percent <- ((dim(data_bears_BC_projected)[1] - ppp_bears$n) / dim(data_bears_BC_projected)[1]) * 100
+cat("\n")
+cat(misclass_dup_percent, "% were misclassified (3) or duplicated (159)")
+# summary(ppp_bears)
+sapply(ppp_bears, class)
+```
+
+After removing misclassified and duplicates, reduced from 1885 to 1723 (162 removed).
+
+### Intensity Estimate under the Assumption of Homogeneity
+```{r}
+# Rescale the window to units of km
+win_bears_km <- rescale(Window(ppp_bears), 1000, "km")
+
+# Intensity in bears/km^2 (could use intensity(ppp_bears) or see in the summary above)
+cat("Intensity of bears per square km:", npoints(ppp_bears)/area(win_bears_km))
+```
+
+There are a total of 1723 black bear occurrences across the province of BC in this dataset. Interpreting this would mean that there are approximately 0.0018 bear occurrences in each square kilometer across the entire province. As a result of having more bears in some areas and less bears in other areas, the location of bears is not spatially homogeneous making the estimate biased and misrepresentative. This is simply the expected number of points (bears) within an area $B$ that are proportional to the area (square kilometre) of $B$ under the assumption of homogeneity:
+
+$$\mathbb{E}[nX \cap B] = \lambda |B|$$
+
+Visualizing the point process can confirm this below.
+
+### Plot the Poisson Point Process (ppp) Object
+```{r}
+library(RColorBrewer)
+
+# Plot the point pattern & assign to variable for specific information
+ppp_bears_plot <- plot(ppp_bears,
+                       main = "Point Pattern of Black Bears Across BC", # Add title to plot to be more descriptive
+                       col = "grey90", # Make the background slightly darker for better visibility
+                       cols = "#046C9A", # brewer.pal(n = 5, name = "Dark2"), # Add colors to each point for better distinction
+                       pch = 1, # c(15, 19, 18, 17, 20), # Set distinct point symbols for each region
+                       cex = 0.8 # Decrease the size of the points for better visibility
+                       # legend = FALSE # Turn off the default legend to position further away
+                       )
+# ppp_bears_plot
+
+# # Add a custom legend with a title 'Region'
+# legend("topright", legend = c("North", "Ok", "South", "Tc", "West"), title = "Region", col = brewer.pal(n = 5, name = "Dark2"), pch = c(15, 19, 18, 17, 20), cex = 0.8)
+```
+
+
+```{r}
+# library(maptools)
+# library(spatstat)
+# # Extract the projected coordinates from the sf object
+# projected_coords <- st_coordinates(data_bears_BC_projected)
+# 
+# # # Jitter duplicated points slightly
+# # projected_coords_unique <- projected_coords
+# # dup_indices <- duplicated(projected_coords)
+# # projected_coords_unique[dup_indices, ] <- jitter(projected_coords[dup_indices, ])
+# 
+# window <- as.owin.SpatialPolygons(data_covariates$Window)
+# 
+# # # Adjust the window to include the projected coordinates
+# # window <- owin(c(min(projected_coords_unique[, "X"]), max(projected_coords_unique[, "X"])),
+# #                c(min(projected_coords_unique[, "Y"]), max(projected_coords_unique[, "Y"])))
+# 
+# # Create a ppp object from the projected coordinates
+# ppp_bears <- ppp(x = projected_coords[, "X"], y = projected_coords[, "Y"], window = window) # as.owin(st_as_sf(data_covariates$Window))) # window = window) # owin())
+# 
+# # Check the class of the object
+# class(ppp_bears)
+# plot(ppp_bears)
+```
+
+### Quadrat Test for Homogeneity of Black Bear Occurrences
+```{r}
+# Split into a 8 by 8 quadrat and count points
+Q_bears <- quadratcount(ppp_bears,
+                        nx = 8,
+                        ny = 8)
+# Q_bears
+
+# Quadrat test of homogeneity 
+quadrat.test(Q_bears)
+```
+
+Based on the $\chi^2$ test of homogeneity, the small p-value suggests that there is a significant deviation from homogeneity and the null hypothesis of spatial homogeneity can be rejected. 
+
+As a result of black bear occurrences across BC being inhomogenous (the number of bears in each area varying), the intensity at any location $u$ is $\lambda(u)$. The number of points (bears) being in an area $B$ is thus given by the integral of the intensity function within $B$:
+
+$$\mathbb{E}[nX \cap B] = \int_B\lambda(u)du$$
+
+The varying intensity of each quadrat ($\lambda$) can be estimated by counting the number of points (bears) in each quadrat divided by the quadrat's area:
+
+$$\lambda(\hat{j}) = \frac{n(x \cap B_j)}{|B_j|} \quad \text{for} \quad j=1..., m$$
+
+This can be exemplified in the plots below.
+
+### Visualize the Quadrats and Resulting Distribution
+```{r}
+# Compute the kernel density estimate
+dens_bears <- density(Q_bears)
+
+# Plot the histogram
+hist(Q_bears, freq = FALSE, main = "Black Bear Occurrences in BC", xlab = "Q_bears")
+
+# Add the kernel density estimate to the plot
+lines(dens_bears, col = "blue")
+
+# Plot the output 
+plot(ppp_bears,
+     pch = 1,
+     cex = 0.8,
+     cols = "#046C9A",
+     main = "Black Bear Occurrences in BC")
+
+plot(Q_bears, cex = 0.9, col = "red", add = T)
+```
+
+Black bear occurrences appear occur more within quadrats located in the southern areas.
+
+### Varying Intensity Estimates ($\lambda(u)) using Quadrats
+```{r}
+# Estimate intensity (lambda) in each quadrat
+lambda_estimates <- data.frame(intensity(Q_bears))
+lambda_estimates
+
+# Convert to bears per sq. km
+lambda_estimates_km <- lambda_estimates
+lambda_estimates_km$Freq <- lambda_estimates_km$Freq * 1000
+lambda_estimates_km
+```
+
+The estimated intensities above are more trustworthy than under the assumption of homogeneity before as it shows the varying nature of the intensity ($\lambda(u)$) of black bear occurrences across the province of BC rather than a generalized estimate ($\lambda$) for all areas. Although these are improved and unbiased estimates of $\mathbb{E}[nX \cap B]$, intensities are still relatively small and difficult to interpret numerically, differences can be better represented when visualized in a plot as seen below.
+
+### Visualize the Estimated Intensities using Quadrats
+```{r fig.height=4, fig.width=4}
+# Plot the output Note the use of image = TRUE
+plot(intensity(Q_bears, image = T),
+     main = "Black Bear Intensity (lambda(u)) in BC")
+
+plot(ppp_bears,
+     pch = 20,
+     cex = 0.6,
+     cols = "white",
+     add = T)
+
+plot(ppp_bears,
+     pch = 20,
+     cex = 0.3,
+     cols = "black",
+     add = T)
+```
+
+### Visualize the Estimated Intensities using Kernels
+```{r}
+# Density estimation of lambda(u)
+lambda_u_hat <- density(ppp_bears)
+
+plot(lambda_u_hat,
+     main = "Kernel estimate of Bear Occurrence Intensity in BC")
+
+plot(ppp_bears,
+     pch = 20,
+     cex = 0.6,
+     cols = "white",
+     add = T)
+
+plot(ppp_bears,
+     pch = 20,
+     cex = 0.4,
+     cols = "black",
+     add = T)
+```
+
+### Comparing Different Bandwidth Selectors
+```{r}
+# Cross Validation Bandwidth Selection
+bw_dig <- bw.diggle(ppp_bears)
+bw_dig
+#    sigma --- FROM PARKS
+# 12703.45
+#    sigma --- FROM BEARS
+# 668.6026
+
+# Likelihood Cross Validation Bandwidth Selection
+bw_ppl <- bw.ppl(ppp_bears)
+bw_ppl
+#    sigma --- FROM PARKS
+# 60165.33
+#   sigma --- FROM BEARS
+# 15768.64
+
+par(mfrow = c(1,2), mar = rep(0.1,4))
+plot(bw_dig, main = "CV BW Selection")
+plot(bw_ppl, main = "Likelihood CV BW Selection")
+```
+
+
+### Visualize the Estimated Intensities using Different Bandwidth Selectors
+```{r}
+# Note the sensitivity of the estimated intensity to the bandwidth optimizer
+par(mfrow = c(1,2), mar = rep(0.1,4))
+plot(density(ppp_bears, sigma = bw_dig), # Cross Validation Bandwidth Selection
+     ribbon = F,
+     main = "CV BW Selection") 
+#    sigma
+# 668.6026
+
+plot(density(ppp_bears, sigma = bw_ppl), # Likelihood Cross Validation Bandwidth Selection
+     ribbon = F,
+     main = "Likelihood CV BW Selection")
+#   sigma
+# 15768.64
+```
+
+### Visualize the Estimated Intensities using an Adaptive Kernel Estimate
+```{r}
+# Density estimation of lambda(u)
+lambda_u_hat_adaptive <- adaptive.density(ppp_bears, method = "kernel")
+
+# Plot the output
+plot(lambda_u_hat_adaptive,
+     main = "Adaptive Kernel Estimate of Intensity")
+```
+
+Based on the above plots, due to the increased bandwidth in the likelihood ratio cross validation (15768.64) in comparison to the regular cross validation method (668.6026), the resulting plot shows the intensities better and is even more effective than the `adaptive.density` plot. The use of the higher bandwidth in the likelihood plot is more representative of varying intensities of black bear occurrences in comparison to the original `density` plot in which there is a generalized bandwidth estimation, cross-validated plot in which there is a lower bandwidth, and the adaptive plot that is very similar to the cross-validated plot.
+
+### Hotspot Analysis to Identify Locations of Elevated Intensity
+
+***FROM LAB 2***
+If the intensity is inhomogeneous, we often want to identify areas of elevated intensity (i.e., hotspots). Identifying hotspots can provide valuable information on a spatial processes (e.g., high crime areas, a high density of artifacts at an archeological dig, dense clusters of galaxies in the universe). The best place to start is usually with the kernel estimate (zones of elevated intensity are usually clearly visible). Depending on your research goals a visual assessment may be sufficient. If you need something more objective, one option is a scan test. Scan tests function as such: at each location $u$, we draw a circle of radius $r$. We can then count the number of points in $n_{\text{in}} = n(x \cap b(u,r))$ and out $n_{\text{out}} = n(x \cap W \notin b(u,r))$ of the circle. Under an assumption that the process is Poisson distributed, we can calculate a likelihood ratio test statistics for the number of points inside vs. outside of the circle (details in spatstat textbook). The null distribution is $\sim \chi^2$ with 1 degree of freedom, allowing us to calculate p-values at each location $u$. This test can be undertaken via the `scanLRTS()` function.
+
+The choice of the radius $r$ can be guided by knowledge of the system or research question. In other instances, it can be estimated, for instance, through kernel bandwidth optimisation. The latter approach is detailed below. In any case, a sensitivity analysis on the radius should be undertaken.
+```{r}
+# Estimate of R is above
+
+#Calculate test statistic
+likelihood_ratio <- scanLRTS(ppp_bears, r = bw_ppl)
+
+#Plot the likelihood output 
+plot(likelihood_ratio, main = "Location(s) of Elevated Intensity")
+
+#Plot the points --- MADE SMALLLER TO SEE INTENSITIES, CAN COMMENT OUT
+plot(ppp_bears,
+     pch = 20,
+     cex = 0.3,
+     cols = "grey30",
+     main = "",
+     add = TRUE)
+
+# Include the window
+# window size of scanLRTS is expanded to include circle of radius that has nonempty intersection with original window
+plot(data_covariates$Window, border = "grey60", add = TRUE)
+```
+
+### Visualize the p-values of Specific Areas of Interest (< 0.2)
+```{r}
+#Compute local p-values
+pvals_bears <- eval.im(pchisq(likelihood_ratio,
+                              df = 1,
+                              lower.tail = FALSE))
+
+#Plot the output
+plot(pvals_bears, main = "Local p-values")
+
+# #Plot the points
+# plot(ppp_bears, add = TRUE, cols = "white", pch = 16, cex = 0.6)
+# plot(ppp_bears, add = TRUE, cols = "black", pch = 16, cex = 0.5)
+
+# Include the window
+# window size of scanLRTS is expanded to include circle of radius that has nonempty intersection with original window
+plot(data_covariates$Window, add = TRUE)
+```
+
+
+
+### Relationships with covariates - FROM LAB 2 -----------------------------------
+
+We are usually interested in determining whether the intensity depends on a covariate(s). A visual assessment may be informative, but is unlikely to be sufficient. One simple approach to check for a relationship between $\lambda(u)$ and a spatial covariate $Z(u)$ is via quadrat counting.
+
+### ELEVATION ----------------------------------------------------------------------
+### Split Elevation into 4 Quadrats to Explore Covariate Relationship 
+```{r}
+#Extract elevation information
+elev_bears <- data_covariates$Elevation
+
+#define quartiles
+b <- quantile(elev_bears, probs = (0:4)/4, type = 2)
+
+#Split image into 4 equal-area quadrats based on elevation values
+Zcut <- cut(elev_bears, breaks = b)
+V_elev <- tess(image = Zcut)
+
+#Count points in each quadrate
+quadratcount(ppp_bears, tess = V_elev)
+```
+
+There appears to be a relationship between black bear occurrences and elevation.
+
+### Visualize the Elevation Quadrat Results
+```{r}
+# plot(quadratcount(ppp_bears, tess = V))
+plot(V_elev, main = "Black Bear Occurrences wrt Elevation")
+plot(ppp_bears, add = TRUE, cols = "white", pch = 16, cex = 0.5)
+plot(ppp_bears, add = TRUE, cols = "black", pch = 16, cex = 0.3)
+```
+
+More formally, in testing for relationships with covariates we are assuming that $\lambda$ is a function of $Z$, such that
+
+$$\lambda(u) = p(Z(u))$$
+
+A non-parametric estimate of $p$ can be obtained via kernel estimation, available via the `rhohat()` function.
+
+### Non-parametric Estimate of $p$ Using Kernal Estimation (rhohat)
+```{r}
+# Estimate Rho
+# Nonparametric Estimate of Intensity (lambda, bear location densities) as Function of a Covariate (Z(u), elevations)
+# Computes a nonparametric estimate of the intensity of a point process, as a function of a (continuous) spatial covariate.
+rho_bears <- rhohat(ppp_bears, elev_bears)
+# rho_bears
+# summary(rho_bears)
+```
+
+### Visualize the Intensity of Black Bear Occurrences as a Function of Elevation
+```{r}
+plot(rho_bears, xlim = c(0, max(rho_bears$elev_bears)), main = "Intensity of Black Bear Occurrences wrt Elevation", xlab = "Elevation (m)", ylab = "rho (p)")
+```
+
+### Interpolate to Explore Relative Differences
+```{r}
+# Find the intensity at different elevations using linear interpolation
+elev_interpolate <- 2800
+intensity_interpolate <- approx(x = rho_bears$elev_bears, y = rho_bears$rho, xout = elev_interpolate)$y
+
+intensity_increase <- ((intensity_interpolate - mean(rho_bears$ave)) / mean(rho_bears$ave)) * 100
+
+increase_decrease <- ifelse(intensity_interpolate < mean(rho_bears$ave), "less than average", "greater than average")
+
+# Display the intensity at defined elevation
+cat("Intensity of bear occurrences at", elev_interpolate, "m:", intensity_interpolate, "\n")
+cat("Average intensity of bear occurrences in BC:", mean(rho_bears$ave), "\n\n")
+cat("Intensity of bear occurrences at", elev_interpolate, "m is", abs(intensity_increase), "%", increase_decrease)
+```
+
+Based on the first moment and second moment descriptive statistics, there is indeed a relationship between black bear occurrences and elevation in BC. In general, as elevation increases, the intensity of bears decreases with intensity ranging from up to 10 times more than the average at lower elevations (i.e., 962% more at 10m) to nearly two times less than the average at higher elevations (i.e., 94% less at 2500m). Although there is a slight increase to approximately 20% more at 2800m, this is most likely due to the single occurrence and is less reliable based on the wider confidence interval.
+
+### FOREST ----------------------------------------------------------------------
+### Split Forest into 4 Quadrats to Explore Covariate Relationship 
+```{r}
+#Extract forest information
+forest_bears <- data_covariates$Forest
+
+#define quartiles
+b <- quantile(forest_bears, probs = (0:4)/4, type = 2)
+
+#Split image into 4 equal-area quadrats based on elevation values
+Zcut <- cut(forest_bears, breaks = b)
+V_forest <- tess(image = Zcut)
+
+#Count points in each quadrate
+quadratcount(ppp_bears, tess = V_forest)
+```
+
+There appears to be a relationship between black bear occurrences and forests.
+
+### Visualize the Forest Quadrat Results
+```{r}
+# plot(quadratcount(ppp_bears, tess = V))
+plot(V_forest, main = "Black Bear Occurrences wrt Forest")
+plot(ppp_bears, add = TRUE, cols = "white", pch = 16, cex = 0.5)
+plot(ppp_bears, add = TRUE, cols = "black", pch = 16, cex = 0.3)
+```
+
+### Non-parametric Estimate of $p$ Using Kernal Estimation (rhohat)
+```{r}
+# Estimate Rho
+# Nonparametric Estimate of Intensity (lambda, bear location densities) as Function of a Covariate (Z(u), forests)
+# Computes a nonparametric estimate of the intensity of a point process, as a function of a (continuous) spatial covariate.
+rho_bears_forest <- rhohat(ppp_bears, forest_bears)
+# rho_bears_forest
+# summary(rho_bears_forest)
+```
+
+### Visualize the Intensity of Black Bear Occurrences as a Function of Elevation
+```{r}
+plot(rho_bears_forest, xlim = c(0, max(rho_bears_forest$forest_bears)), main = "Intensity of Black Bear Occurences wrt Forest", xlab = "Forest Density", ylab = "rho (p)")
+```
+
+### Interpolate to Explore Relative Differences
+```{r}
+# Find the intensity at different forest densities using linear interpolation
+forest_interpolate <- 99
+intensity_forest <- approx(x = rho_bears_forest$forest_bears, y = rho_bears_forest$rho, xout = forest_interpolate)$y
+
+intensity_increase_forest <- ((intensity_forest - mean(rho_bears_forest$ave)) / mean(rho_bears_forest$ave)) * 100
+
+increase_decrease_forest <- ifelse(intensity_forest < mean(rho_bears_forest$ave), "less than average", "greater than average")
+
+# Display the intensity at defined forest density
+cat("Intensity of bear occurrences at", forest_interpolate, "forest density:", intensity_forest, "\n")
+cat("Average intensity of bear occurrences in BC:", mean(rho_bears_forest$ave), "\n\n")
+cat("Intensity of bear occurrences at", forest_interpolate, "forest density is", abs(intensity_increase_forest), "%", increase_decrease_forest)
+```
+
+Based on the first moment and second moment descriptive statistics, there is indeed a relationship between black bear occurrences and forest density in BC. In general, as forest density increases, the intensity of bears increases with intensity ranging from down to nearly two times less than the average at lower forest densities (i.e., 88% less at 1) to two times more than the average at higher forest densities (i.e., 106% more at 40). Interestingly, as forest densities increase beyond this point on inflection, the density of bear occurrences decreases with intensity approaching nearly two times less than average again (i.e., 78% less at 99). This suggests that black bears are more likely to occur in moderately dense forests as opposed to the extremes, lightly dense and heavily dense forests.
+
+### HFI ----------------------------------------------------------------------
+### Split Human Footprint Index into 4 Quadrats to Explore Covariate Relationship
+```{r}
+#Extract forest information
+HFI_bears <- data_covariates$HFI
+
+#define quartiles
+b <- quantile(HFI_bears, probs = (0:4)/4, type = 2)
+
+#Split image into 4 equal-area quadrats based on elevation values
+Zcut <- cut(HFI_bears, breaks = b)
+V_HFI <- tess(image = Zcut)
+
+#Count points in each quadrate
+quadratcount(ppp_bears, tess = V_HFI)
+```
+
+There appears to be a relationship between black bear occurrences and human footprint index.
+
+### Visualize the Forest Quadrat Results
+```{r}
+# plot(quadratcount(ppp_bears, tess = V_HFI))
+plot(V_HFI)
+plot(ppp_bears, add = TRUE, cols = "white", pch = 16, cex = 0.5)
+plot(ppp_bears, add = TRUE, cols = "black", pch = 16, cex = 0.3)
+```
+
+### Non-parametric Estimate of $p$ Using Kernal Estimation (rhohat)
+```{r}
+# Estimate Rho
+# Nonparametric Estimate of Intensity (lambda, bear location densities) as Function of a Covariate (Z(u), HFI)
+# Computes a nonparametric estimate of the intensity of a point process, as a function of a (continuous) spatial covariate.
+rho_bears_HFI <- rhohat(ppp_bears, HFI_bears)
+# rho_bears_HFI
+# summary(rho_bears_HFI)
+```
+
+### Visualize the Intensity of Black Bear Occurrences as a Function of Elevation
+```{r}
+plot(rho_bears_HFI, xlim = c(0, max(rho_bears_HFI$HFI_bears)), main = "Intensity of Black Bear Occurences wrt HFI", xlab = "Human Footprint Index (HFI)", ylab = "rho (p)")
+```
+
+### Interpolate to Explore Relative Differences
+```{r}
+# Find the intensity at different human footprint indexes using linear interpolation
+HFI_interpolate <- 0.75
+intensity_HFI <- approx(x = rho_bears_HFI$HFI_bears, y = rho_bears_HFI$rho, xout = HFI_interpolate)$y
+
+intensity_increase_HFI <- ((intensity_HFI - mean(rho_bears_HFI$ave)) / mean(rho_bears_HFI$ave)) * 100
+
+increase_decrease_HFI <- ifelse(intensity_HFI < mean(rho_bears_HFI$ave), "less than average", "greater than average")
+
+# Display the intensity at defined forest density
+cat("Intensity of bear occurrences at", HFI_interpolate, "HFI:", intensity_HFI, "\n")
+cat("Average intensity of bear occurrences in BC:", mean(rho_bears_HFI$ave), "\n\n")
+cat("Intensity of bear occurrences at", HFI_interpolate, "HFI is", abs(intensity_increase_HFI), "%", increase_decrease_HFI)
+```
+
+Based on the first moment and second moment descriptive statistics, there is indeed a relationship between black bear occurrences and human footprint index (HFI) in BC. In general, as the HFI increases, the intensity of bears increases with intensity ranging from down to nearly two times less than the average at lower HFIs (i.e., 94% less at 0.01) to nearly 10 times more than the average at higher HFIs (i.e., 904% more at 0.5). Interestingly, as the HFI increases, the density of bear occurrences continues to increase with an intensity approaching nearly 32 times more than average (i.e., 3190% more at 99). This suggests that black bears are more likely to occur in areas where the HFI is higher as opposed to lower, which somewhat contradicts the intensity of bears with respect to forest density as it was implied that they preferred areas of moderately dense forests. ***CHECK THIS WITH DISTRIBUTION PLOTS*** ---------
+
+### DIST_WATER ----------------------------------------------------------------------
+### Split Distance from Water into 4 Quadrats to Explore Covariate Relationship
+```{r}
+#Extract DIST_WATER information
+DIST_WATER_bears <- data_covariates$Dist_Water
+
+#define quartiles
+b <- quantile(DIST_WATER_bears, probs = (0:4)/4, type = 2)
+
+#Split image into 4 equal-area quadrats based on DIST_WATER values
+Zcut <- cut(DIST_WATER_bears, breaks = b)
+V_DIST_WATER <- tess(image = Zcut)
+
+#Count points in each quadrate
+quadratcount(ppp_bears, tess = V_DIST_WATER)
+```
+
+There appears to be a relationship between black bear occurrences and distance from water.
+
+### Visualize the Distance from Water Quadrat Results
+```{r}
+# plot(quadratcount(ppp_bears, tess = V_DIST_WATER))
+plot(V_DIST_WATER)
+plot(ppp_bears, add = TRUE, cols = "white", pch = 16, cex = 0.5)
+plot(ppp_bears, add = TRUE, cols = "black", pch = 16, cex = 0.3)
+```
+
+### Non-parametric Estimate of $p$ Using Kernal Estimation (rhohat)
+```{r}
+# Estimate Rho
+# Nonparametric Estimate of Intensity (lambda, bear location densities) as Function of a Covariate (Z(u), DIST_WATER)
+# Computes a nonparametric estimate of the intensity of a point process, as a function of a (continuous) spatial covariate.
+rho_bears_DIST_WATER <- rhohat(ppp_bears, DIST_WATER_bears)
+# rho_bears_DIST_WATER
+# summary(rho_bears_DIST_WATER)
+```
+
+### Visualize the Intensity of Black Bear Occurrences as a Function of Distance from Water
+```{r}
+plot(rho_bears_DIST_WATER, xlim = c(0, max(rho_bears_DIST_WATER$DIST_WATER_b)), main = "Intensity of Black Bear Occurences wrt Dist_Water", xlab = "Distance from Water", ylab = "rho (p)")
+```
+
+### Interpolate to Explore Relative Differences
+```{r}
+# Find the intensity at different human footprint indexes using linear interpolation
+DIST_WATER_interpolate <- 13000
+intensity_DIST_WATER <- approx(x = rho_bears_DIST_WATER$DIST_WATER_b, y = rho_bears_DIST_WATER$rho, xout = DIST_WATER_interpolate)$y
+
+intensity_increase_DIST_WATER <- ((intensity_DIST_WATER - mean(rho_bears_DIST_WATER$ave)) / mean(rho_bears_DIST_WATER$ave)) * 100
+
+increase_decrease_DIST_WATER <- ifelse(intensity_DIST_WATER < mean(rho_bears_DIST_WATER$ave), "less than average", "greater than average")
+
+# Display the intensity at defined forest density
+cat("Intensity of bear occurrences at", DIST_WATER_interpolate, "HFI:", intensity_DIST_WATER, "\n")
+cat("Average intensity of bear occurrences in BC:", mean(rho_bears_DIST_WATER$ave), "\n\n")
+cat("Intensity of bear occurrences at", DIST_WATER_interpolate, "HFI is", abs(intensity_increase_DIST_WATER), "%", increase_decrease_DIST_WATER)
+```
+
+Based on the first moment and second moment descriptive statistics, there is a slight relationship between black bear occurrences and distance from water in BC. In general, as the distance from water increases, the intensity of bears increases with intensity ranging from approximately average at lower HFIs (i.e., 2% ~ 14% less at 75m ~ 1m, respectively) to approximately 37% at 250m. Interestingly, as the distance from water increases, the density of bear occurrences continues to oscillate in this range until reaching an intensity of approximately 37% at 3250m. At this point of inflection, the intensity of bear occurrences decreases to two times below the average around 10,000m from water. This suggests that black bears are more likely to occur in areas closer to water, which coincides somewhat with lower elevations as they approach sea level. Although there is an increase to approximately 88% more at 13,000m, this is most likely due to the two occurrences and is less reliable based on the wider confidence interval.
+
+
+
+## Correlations between the Locations of Black Bear Occurrences 
+
+### Determine Attraction or Inhibition using Morisita's Index
+```{r}
+# Morisita's Index plot
+
+# Range of x and y values to be used for rectangle window; (-1, 1) includes min/max
+x_range <- range(projected_coords[, "X"]) + c(-1, 1)
+y_range <- range(projected_coords[, "Y"]) + c(-1, 1)
+
+# Create the ppp object
+ppp_bears_bbox <- ppp(x = projected_coords[, "X"], y = projected_coords[, "Y"], window = as.owin(c(x_range, y_range)))
+
+# View the resulting ppp object
+# ppp_bears_bbox
+# summary(ppp_bears_bbox)
+
+miplot(ppp_bears_bbox,
+       # ylim = c(0,7),
+       main = "",
+       pch = 16,
+       col = "#046C9A")
+```
+
+### Test for Significant Correlations Using Ripley's $K$-function (homogeneity)
+```{r}
+# Estimate the empirical k-function QUICKLY HERE --------------------------------
+# Estimates Ripley's reduced second moment function K(r) from a point pattern in a window of arbitrary shape.
+ripley_k_bears <- Kest(ppp_bears, correction = "border")
+
+# Display the object
+# ripley_k_bears
+# summary(ripley_k_bears)
+```
+
+### Visualize the Results from Ripley's $K$-function (homogeneity)
+```{r}
+# Visualise the results QUICKLY HERE ---------------------------------------
+ripley_k_bears_plot <- plot(ripley_k_bears,
+                            main = "K-function for Black Bear Occurrences in BC",
+                            lwd = 2)
+# ripley_k_bears_plot
+```
+
+### Test for Significance: Ripley's $K$-function (homogeneity), Simulating for Confidence Bands
+```{r}
+# Bootstrapped CIs
+# rank = 1 means the max and min
+# Border correction is to correct for edges around the window
+# values will be used for CI
+E_bears <- envelope(ppp_bears,
+                    Kest,
+                    correction="border",
+                    rank = 1,
+                    nsim = 19,
+                    fix.n = T)
+# E_bears
+```
+
+### Visualize the Results from Ripley's $K$-function with Confidence Bands Included
+```{r}
+# visualise the results
+# summary(E_bears)
+E_bears_plot <- plot(E_bears,
+                     main = "",
+                     lwd = 2)
+# E_bears_plot
+```
+
+### Test for Significant Correlations Using Ripley's $K$-function (inhomogeneity)
+```{r}
+# Estimate intensity
+lambda_bears <- density(ppp_bears, bw_ppl) # if code isn't run from top, switch to bw.ppl
+
+# Inhomogeneous K-function
+# Estimates the inhomogeneous K-function of a non-stationary point pattern.
+Kinhom_bears <- Kinhom(ppp_bears, lambda_bears)
+
+# Kinhom_bears
+```
+
+### Visualize the Results from Ripley's $K$-function (inhomogeneity)
+```{r}
+# visualise the results
+plot(Kinhom_bears,
+     theo ~ r,
+     main = "",
+     col = "grey70",
+     lty = "dashed",
+     lwd = 2)
+
+plot(Kinhom_bears,
+     border ~ r,
+     col = c("#046C9A"),
+     lwd = 2,
+     add = T)
+```
+
+### Test for Significance: Ripley's $K$-function (inhomogeneity), Simulating for Confidence Bands
+```{r}
+# Estimate a strictly positive density
+lambda_bears_pos <- density(ppp_bears,
+                            sigma=bw_ppl, # if code isn't run from top, switch to bw.ppl
+                            positive=TRUE)
+
+# Simulation envelope (with points drawn from the estimated intensity)
+E_bears_inhom <- envelope(ppp_bears,
+                          Kinhom,
+                          simulate = expression(rpoispp(lambda_bears_pos)),
+                          correction="border",
+                          rank = 1,
+                          nsim = 19,
+                          fix.n = TRUE)
+```
+
+### Visualize the Results from Ripley's $K$-function with Confidence Bands Included (ZOOM IN)
+```{r}
+# visualise the results
+par(mfrow = c(1,2))
+plot(E_bears_inhom,
+     main = "",
+     lwd = 2)
+
+# Zoom in on range where significant deviations appear
+plot(E_bears_inhom,
+     xlim = c(175000, 275000),
+     main = "",
+     lwd = 2)
+```
+
+### COMPARATIVE PLOTS ------------------------------------------
+
+**K-FUNCTION**
+```{r}
+# visualise the results
+par(mfrow = c(1,2))
+plot(E_bears,
+     main = "K-Function (Homogenous)",
+     lwd = 2)
+
+# Zoom in on range where significant deviations appear
+plot(E_bears_inhom,
+     # xlim = c(200000, 300000),
+     main = "K-Function (Inhomogenous)",
+     lwd = 2)
+```
+
+### SPLITTING DATA HERE TO TRY G-FUNCTION
+```{r}
+# Thin the point pattern to the desired number of points
+ppp_bears_thin <- rthin(ppp_bears, 0.1)
+
+# Calculate the percentage of points that were removed from thinning
+thinned_percent <- ((ppp_bears$n - ppp_bears_thin$n) / ppp_bears$n) * 100
+cat("\n")
+cat(thinned_percent, "% were removed from thinning for g-function")
+
+# Summary of the thinned point pattern
+# summary(ppp_bears_thin)
+
+# Check the classes of the thinned point pattern
+sapply(ppp_bears_thin, class)
+```
+
+
+
+
+
+
+
+### g-function (homogeneity)
+```{r}
+# --- FULL PPP TOOK 15 MINS TO START, 15 MINS FOR TIME, 45 MINS FOR 3, STILL 2 HOURS REMAINING
+# --- THINNED FOR G-FUNCTION MAKE SURE DON'T USE FULL PPP ---------------------------------
+E_bears_g_func <- envelope(ppp_bears_thin,
+                           pcf,
+                           rank = 1,
+                           nsim = 19,
+                           fix.n = T)
+# E_bears_g_func
+# summary(E_bears_g_func)
+```
+
+```{r}
+# visualise the results
+E_bears_g_func_plot <- plot(E_bears_g_func,
+                            main = "",
+                            lwd = 2)
+# E_bears_g_func_plot
+```
+
+### g-function (inhomogeneity)
+```{r}
+# Density estimation of lambda(u)
+lambda_u_hat_thin <- density(ppp_bears_thin) # MAKE SURE NEW LAMBDA_U ON THINNED PPP -----
+
+E_bears_g_func_inhom <- envelope(ppp_bears_thin,
+                                 pcfinhom,
+                                 simulate = expression(rpoispp(lambda_u_hat_thin)),
+                                 rank = 1,
+                                 nsim = 19,
+                                 fix.n = T)
+# E_bears_g_func_inhom
+# summary(E_bears_g_func_inhom)
+```
+
+```{r}
+# visualise the results
+E_bears_g_func_inhom_plot <- plot(E_bears_g_func_inhom,
+                                  main = "",
+                                  lwd = 2)
+# E_bears_g_func_inhom_plot
+```
+
+
+### COMPARATIVE PLOTS ------------------------------------------
+**G-FUNCTION**
+```{r}
+# visualise the results
+par(mfrow = c(1,2))
+plot(E_bears_g_func,
+     main = "G-Function (Homogenous)",
+     lwd = 2)
+
+# Zoom in on range where significant deviations appear
+plot(E_bears_g_func_inhom,
+     # xlim = c(200000, 300000),
+     main = "G-Function (Inhomogenous)",
+     lwd = 2)
+```
+
+
+
+
+### KDES ------------------------------------------------------------------------
+
+
+### ELEVATION ---------------------------------------------
+```{r}
+# Compute the kernel density estimate for BC data
+kde_BC <- density(as.numeric(data_covariates$Elevation))
+
+# Compute the kernel density estimate for bear elevations
+kde_bears <- density(as.numeric(data_covariates$Elevation[ppp_bears]))
+
+# Plot the first KDE
+plot(kde_BC, main = "Province of BC Elevations", col = rgb(0, 0, 1, 1/4), # xlim = c(0, max(kde_bears$x) * 1.1)
+     xlab = "Elevation", ylab = "Density")
+
+# Plot the second KDE
+polygon(kde_BC, col = rgb(0, 0, 1, 1/2), ylim = c(0, max(data_covariates$Elevation)))
+
+# Plot the second KDE
+polygon(kde_bears, col = rgb(1, 0, 0, 1/2))
+
+# Add legend
+legend("topright", legend = c("BC Elevations", "Bear Location Elevations"), col = c(rgb(0, 0, 1, 1/4), rgb(1, 0, 0, 1/2)), lty = 1, bty = "n")
+```
+
+### FORESTS -------------------------------------------------
+```{r}
+# Compute the kernel density estimate for BC data
+kde_BC <- density(as.numeric(data_covariates$Forest))
+
+# Compute the kernel density estimate for bear forests
+kde_bears <- density(as.numeric(data_covariates$Forest[ppp_bears]))
+
+# Plot the first KDE
+plot(kde_BC, main = "Province of BC Forests", col = rgb(0, 0, 1, 1/4), # xlim = c(0, max(kde_bears$x) * 1.1)
+     xlab = "Forests", ylab = "Density")
+
+# Plot the second KDE
+polygon(kde_BC, col = rgb(0, 0, 1, 1/2), ylim = c(0, max(data_covariates$Forest)))
+
+# Plot the second KDE
+polygon(kde_bears, col = rgb(1, 0, 0, 1/2))
+
+# Add legend
+legend("topright", legend = c("BC Forests", "Bear Location Forests"), col = c(rgb(0, 0, 1, 1/4), rgb(1, 0, 0, 1/2)), lty = 1, bty = "n")
+```
+
+### HFI ----------------------------------------------------------------------
+```{r}
+# Compute the kernel density estimate for BC data
+kde_BC <- density(as.numeric(data_covariates$HFI))
+
+# Compute the kernel density estimate for bear human footprint index
+kde_bears <- density(as.numeric(data_covariates$HFI[ppp_bears]))
+
+# Plot the first KDE
+plot(kde_BC, main = "Province of BC HFI", col = rgb(0, 0, 1, 1/4), # xlim = c(0, max(kde_bears$x) * 1.1)
+     xlab = "HFI", ylab = "Density")
+
+# Plot the second KDE
+polygon(kde_BC, col = rgb(0, 0, 1, 1/2), ylim = c(0, max(data_covariates$HFI)))
+
+# Plot the second KDE
+polygon(kde_bears, col = rgb(1, 0, 0, 1/2))
+
+# Add legend
+legend("topright", legend = c("BC HFI", "Bear Location HFI"), col = c(rgb(0, 0, 1, 1/4), rgb(1, 0, 0, 1/2)), lty = 1, bty = "n")
+```
+
+### DIST_WATER --------------------------------------------------------------------
+```{r}
+# Compute the kernel density estimate for BC data
+kde_BC <- density(as.numeric(data_covariates$Dist_Water))
+
+# Compute the kernel density estimate for bear distances from water
+kde_bears <- density(as.numeric(data_covariates$Dist_Water[ppp_bears]))
+
+# Plot the first KDE
+plot(kde_BC, main = "Province of BC DIST_WATER", col = rgb(0, 0, 1, 1/4), # xlim = c(0, max(kde_bears$x) * 1.1)
+     xlab = "DIST_WATER", ylab = "Density")
+
+# Plot the second KDE
+polygon(kde_BC, col = rgb(0, 0, 1, 1/2), ylim = c(0, max(data_covariates$Dist_Water)))
+
+# Plot the second KDE
+polygon(kde_bears, col = rgb(1, 0, 0, 1/2))
+
+# Add legend
+legend("topright", legend = c("BC DIST_WATER", "Bear Location DIST_WATER"), col = c(rgb(0, 0, 1, 1/4), rgb(1, 0, 0, 1/2)), lty = 1, bty = "n")
+```
+
+
+### TRYING TO COMPARE BEAR OCCURRENCES WITH PARK LOCATIONS HERE ---------------------------
+```{r}
+# Create the parks ppp object
+ppp_parks <- ppp(x = data_parks$Parks$X, y = data_parks$Parks$Y, window = as.owin(data_parks$Window))
+
+# Add region information as marks
+marks(ppp_parks) <- data_parks$Parks$Region
+
+# View the resulting ppp object
+# ppp_parks
+# summary(ppp_parks)
+```
+
+```{r}
+# Plot the point pattern & assign to variable for specific information
+ppp_parks_plot <- plot(ppp_parks,
+                       main = "Point Pattern of Parks with Bear Occurrences", # Add title to plot to be more descriptive
+                       col = "grey90", # Make the background slightky darker for better visibility
+                       cols = brewer.pal(n = 5, name = "Dark2"), # Add colors to each point for better distinction
+                       pch = c(15, 19, 18, 17, 20), # Set distinct point symbols for each region
+                       cex = 0.8, # Decrease the size of the points for better visibility
+                       legend = FALSE # Turn off the default legend to position further away
+                       )
+# ppp_parks_plot
+
+# Add a custom legend with a title 'Region'
+legend("topright", legend = c("North", "Ok", "South", "Tc", "West"), title = "Region", col = brewer.pal(n = 5, name = "Dark2"), pch = c(15, 19, 18, 17, 20), cex = 0.8)
+
+#Plot the bear data points
+plot(ppp_bears, add = TRUE, cols = "white", pch = 20, cex = 0.6)
+plot(ppp_bears, add = TRUE, cols = "black", pch = 20, cex = 0.5)
+```
+
+
+```{r}
+library(spatstat)
+
+# Calculate intensity of bear occurrences
+intensity_bears <- density.ppp(ppp_bears)
+
+# Calculate intensity of park locations
+intensity_parks <- density.ppp(ppp_parks)
+
+par(mfrow = c(1,2), mar = rep(0.1,4))
+# Visualize intensity surfaces
+plot(intensity_bears, main = "Intensity of Bear Occurrences")
+plot(intensity_parks, main = "Intensity of Park Locations")
+```
+
+### Visualize and Compare the Estimated Intensities of Bear Occurrences and Park Locations
+```{r}
+# Note the sensitivity of the estimated intensity to the bandwidth optimizer
+par(mfrow = c(1,2), mar = rep(0.1,4))
+plot(density(ppp_bears, sigma = bw_ppl), # Cross Validation Bandwidth Selection
+     ribbon = F,
+     main = "Intensity of Bear Occurrences") 
+#    sigma
+# 668.6026
+
+plot(density(ppp_parks, sigma = bw_ppl), # Likelihood Cross Validation Bandwidth Selection
+     ribbon = F,
+     main = "Intensity of Park Locations")
+#   sigma
+# 15768.64
+```
+
+
+
+
+```{r}
+# Compute the kernel density estimate for park elevations
+kde_parks <- density(as.numeric(data_parks$Elevation[data_parks$Parks]))
+
+# Compute the kernel density estimate for bear elevations
+kde_bears <- density(as.numeric(data_covariates$Elevation[ppp_bears]))
+
+# Plot the first KDE
+plot(kde_parks, main = "Province of BC", col = rgb(0, 0, 1, 1/2), ylim = c(0, max(kde_bears$y)), # xlim = c(0, max(kde_parks$x) * 1.1)
+     xlab = "Elevation", ylab = "Density")
+
+# Plot the first KDE
+polygon(kde_parks, col = rgb(0, 0, 1, 1/2))
+
+# Plot the second KDE
+polygon(kde_bears, col = rgb(1, 0, 0, 1/2))
+
+# Add legend
+legend("topright", legend = c("Parks wrt Elevation", "Bears wrt Elevation"), col = c(rgb(0, 0, 1, 1/2), rgb(1, 0, 0, 1/2)), lty = 1, bty = "n")
+```
+
+```{r}
+# Compute the kernel density estimate for park forests
+kde_parks <- density(as.numeric(data_parks$Forest[data_parks$Parks]))
+
+# Compute the kernel density estimate for bear forests
+kde_bears <- density(as.numeric(data_covariates$Forest[ppp_bears]))
+
+# Plot the first KDE
+plot(kde_parks, main = "Province of BC", col = rgb(0, 0, 1, 1/2), ylim = c(0, max(kde_parks$y)), # xlim = c(0, max(kde_parks$x) * 1.1)
+     xlab = "Forest Density", ylab = "Density")
+
+# Plot the first KDE
+polygon(kde_parks, col = rgb(0, 0, 1, 1/2))
+
+# Plot the second KDE
+polygon(kde_bears, col = rgb(1, 0, 0, 1/2))
+
+# Add legend
+legend("topright", legend = c("Parks wrt Forest", "Bears wrt Forest"), col = c(rgb(0, 0, 1, 1/2), rgb(1, 0, 0, 1/2)), lty = 1, bty = "n")
+```
+
+### DETERMINING CORRELATION OF PARKS AND BEARS BY DISTANCES
+```{r}
+library(spatstat)
+
+# Calculate the distances between points in ppp_bears and ppp_parks
+distances <- crossdist(ppp_bears, ppp_parks)
+
+# Compute a correlation measure (e.g., Pearson correlation coefficient)
+correlation <- cor(distances)
+
+# Flatten the matrix into a vector
+distance_vector <- as.vector(distances)
+
+# Perform the correlation test
+cor_test <- cor.test(x = distances[,1], y = distances[,2])
+
+# Print the results
+print(cor_test)
+
+par(mfrow = c(1,2), mar = rep(0.1,4))
+# Create a scatter plot of the distances
+plot(distances, main = "Correlation Plot", xlab = "Distance in ppp_bears", ylab = "Distance in ppp_parks")
+
+# Interpret the correlation measure
+plot(correlation)
+```
+
+### TRYING VARIOGRAMS - DID NOT WORK/DO IT PROPERLY -------------------------------
+```{r}
+# library(gstat)
+# # # Data import and wrangling
+# # data <- read.csv("Datasets/Boreality.csv")
+# # sp::coordinates(data) <- c("x","y")
+# 
+# # Empirical variogram
+# vg <- gstat::variogram(data_covariates$Elevation ~ 1, data = as.data.frame(projected_coords))
+# # Fit linear correlation model
+# fit.linear <- fit.variogram(vg, vgm ("Lin"))
+```
+
+### CHECKING FOR COLLINEARITY BETWEEN COVARIATES
+```{r}
+# Check for collinearity
+cor.im(Elevation = data_covariates$Elevation, Forest = data_covariates$Forest, HFI = data_covariates$HFI, Dist_water = data_covariates$Dist_Water, use = "complete.obs") # "everything" did not work
+```
+
+### FITTING A MODEL
+```{r}
+# Fit the PPP model
+fit_bears <- ppm(ppp_bears ~ Elevation + I(Elevation^2) + Forest + I(Forest^2) + HFI + I(HFI^2) + Dist_Water + I(Dist_Water^2), data = data_covariates)
+fit_bears
+```
+
+$$\lambda_{bears}(u) = e^{\text{-21.02311} - \text{0.002763701 elevation}(u) + \text{0.0000007955037 elevation}(u)^2 + \text{0.03139672 forest}(u) - \text{0.0002180481 forest}(u)^2} + \text{11.70025 HFI}(u) - \text{8.644236 HFI}(u)^2 - \text{0.00003768961 Dist_Water}(u) - \text{0.000000005277563 Dist_Water}(u)^2}$$
+
+### Fit a Null Model (intercept only) for Comparison
+```{r}
+# Fit the PPP model
+fit_null_bears <- ppm(ppp_bears ~ 1)
+fit_null_bears
+```
+
+**Use AIC and a likelihood ratio test to determine if the full model is a better fit than the intercept only model**
+```{r}
+# AIC values
+AIC(fit_bears); AIC(fit_null_bears)
+
+# Delta AIC
+AIC(fit_null_bears) - AIC(fit_bears)
+```
+
+With an AIC of ca. 288, the extra complexity is well supported by the data.
+
+```{r}
+# Likelihood ratio test
+anova(fit_bears, fit_null_bears, test = "LRT")
+```
+
+Based on the LRT, there is more evidence that the more complex model fits the data better.
+
+**Write down the equation for the selected model.**
+
+$$\lambda_{bears}(u) = e^{\text{-21.02311} - \text{0.002763701 elevation}(u) + \text{0.0000007955037 elevation}(u)^2 + \text{0.03139672 forest}(u) - \text{0.0002180481 forest}(u)^2} + \text{11.70025 HFI}(u) - \text{8.644236 HFI}(u)^2 - \text{0.00003768961 Dist_Water}(u) - \text{0.000000005277563 Dist_Water}(u)^2}$$
+
+**Use this equation to estimate the intensity of bears at 500m elevation, 50% forest cover, 0.5 human footprint index, 10m to water.**
+```{r}
+beta_0 <- -21.02311             # Intercept
+beta_1 <- -0.002763701          # Elevation
+beta_2 <- 0.0000007955037       # Elevation
+beta_3 <- 0.03139672            # Forest
+beta_4 <- -0.0002180481         # Forest
+beta_5 <- 11.70025              # HFI
+beta_6 <- -8.644236             # HFI
+beta_7 <- -0.00003768961        # Dist_Water
+beta_8 <- -0.000000005277563    # Dist_Water
+
+u1 <- 500   # Elevation
+u2 <- 50    # Forest
+u3 <- 0.5   # HFI
+u4 <- 10    # Dist_Water
+
+answer <- exp(beta_0 + beta_1*u1 + beta_2*(u1**2) + beta_3*u2 + beta_4*(u2**2) + beta_5*u3 + beta_6*(u3**2) + beta_7*u4 + beta_8*(u4**2))
+cat("Estimated Bear Intensity at 500m, 50% forest coverage is", answer)
+```
+
+**Visualise the fitted model. Note: log scale the estimated intensity when plotting, ignore the standard error. You can use the $n$ argument to adjust the resolution.**
+```{r fig.height=8, fig.width=6}
+# Plot the model predictions
+plot(fit_bears,
+     log = "xy",
+     se = FALSE,
+     superimpose = FALSE)
+     # n = 33) # resolution
+
+# Overlay the Park locations
+plot(ppp_bears,
+     pch = 16,
+     cex = 0.5,
+     cols = "white",
+     add = TRUE)
+plot(ppp_bears,
+     pch = 16,
+     cex = 0.3,
+     cols = "black",
+     add = TRUE)
+```
+
+**Plot the effects of the individual coefficients. Note: use the median value(s) of the other coefficients.**  
+
+The predicted values of $\lambda_{parks}(u)$ are a function of all of the fitted covariates. Because the point process occurs over two dimensions, it can be difficult to understand how the individual coefficients in-and-of-themselves influence $\lambda_{parks}(u)$. We can use the `effectfun()` function to compute the intensity of a fitted point process model as a function of one of its covariates.
+```{r}
+# Median forest
+median_forest <- median(data_covariates$Forest)
+
+# Elevational effect on lambda at median forest
+elev_effect <- effectfun(fit_bears, "Elevation", Forest = median_forest, se.fit = T)
+
+# Median elevation
+median_elev <- median(data_covariates$Elevation)
+
+# Forest effect on lambda at median elevation
+forest_effect <- effectfun(fit_bears, "Forest", Elevation = median_elev, se.fit = T)
+
+
+
+# Median HFI
+median_HFI <- median(data_covariates$HFI)
+
+# Dist_Water effect on lambda at median HFI
+dist_water_effect <- effectfun(fit_bears, "Dist_Water", HFI = median_HFI, se.fit = T)
+
+# Median Dist_Water
+median_dist_water <- median(data_covariates$Dist_Water)
+
+# HFI effect on lambda at median Dist_Water
+HFI_effect <- effectfun(fit_bears, "HFI", Dist_Water = median_dist_water, se.fit = T)
+
+
+
+# Elevational effect on lambda at median HFI
+elev_effect_on_HFI <- effectfun(fit_bears, "Elevation", HFI = median_HFI, se.fit = T)
+
+# Elevational effect on lambda at median Dist_Water
+elev_effect_on_dist_water <- effectfun(fit_bears, "Elevation", Dist_Water = median_dist_water, se.fit = T)
+
+
+
+# Forest effect on lambda at median HFI
+forest_effect_on_HFI <- effectfun(fit_bears, "Forest", Elevation = median_HFI, se.fit = T)
+
+# Forest effect on lambda at median Dist_Water
+forest_effect_on_dist_water <- effectfun(fit_bears, "Forest", Elevation = median_dist_water, se.fit = T)
+
+
+
+# HFI effect on lambda at median forest
+HFI_effect_on_forest <- effectfun(fit_bears, "HFI", Forest = median_forest, se.fit = T)
+
+# Dist_Water effect on lambda at median forest
+dist_water_effect_on_forest <- effectfun(fit_bears, "Dist_Water", Forest = median_forest, se.fit = T)
+
+
+
+# HFI effect on lambda at median elevation
+HFI_effect_on_elev <- effectfun(fit_bears, "HFI", Elevation = median_elev, se.fit = T)
+
+# Dist_Water effect on lambda at median elevation
+dist_water_effect_on_elev <- effectfun(fit_bears, "Dist_Water", Elevation = median_elev, se.fit = T)
+
+
+
+
+# Side by side plotting
+par(mfrow = c(6,2))
+
+# Plot the elevation effect 
+plot(elev_effect,
+     legend = FALSE,
+     main = "Effect of Elevation at Median Forest")
+
+# Plot the forest effect 
+plot(forest_effect,
+     legend = FALSE,
+     main = "Effect of Forest at Median Elevation")
+
+
+
+# Plot the Dist_Water effect on median HFI
+plot(dist_water_effect,
+     legend = FALSE,
+     main = "Effect of Dist_Water at Median HFI")
+
+# Plot the HFI effect on median Dist_Water
+plot(HFI_effect,
+     legend = FALSE,
+     main = "Effect of HFI at Median Dist_Water")
+
+
+
+# Plot the elevational effect on median HFI
+plot(elev_effect_on_HFI,
+     legend = FALSE,
+     main = "Effect of Elevation at Median HFI")
+
+# Plot the HFI effect on median Dist_Water
+plot(elev_effect_on_dist_water,
+     legend = FALSE,
+     main = "Effect of Elevation at Median Dist_Water")
+
+
+
+# Plot the forest effect on median HFI
+plot(forest_effect_on_HFI,
+     legend = FALSE,
+     main = "Effect of Forest at Median HFI")
+
+# Plot the forest effect on median Dist_Water
+plot(forest_effect_on_dist_water,
+     legend = FALSE,
+     main = "Effect of Forest at Median Dist_Water")
+
+
+
+# Plot the HFI effect on median Forest
+plot(HFI_effect_on_forest,
+     legend = FALSE,
+     main = "Effect of HFI at Median Forest")
+
+# Plot the HFI effect on median Elevation
+plot(HFI_effect_on_elev,
+     legend = FALSE,
+     main = "Effect of HFI at Median Elevation")
+
+
+
+# Plot the Dist_Water effect on median Forest
+plot(dist_water_effect_on_forest,
+     legend = FALSE,
+     main = "Effect of Dist_Water at Median Forest")
+
+# Plot the Dist_Water effect on median Elevation
+plot(dist_water_effect_on_elev,
+     legend = FALSE,
+     main = "Effect of Dist_Water at Median Elevation")
+```
+
+
+```{r}
+# Median forest
+median_forest <- median(data_covariates$Forest)
+
+# Median elevation
+median_elev <- median(data_covariates$Elevation)
+
+# Median HFI
+median_HFI <- median(data_covariates$HFI)
+
+# Median Dist_Water
+median_dist_water <- median(data_covariates$Dist_Water)
+
+
+
+# Elevational effect on lambda at median forest
+elev_effect <- effectfun(fit_bears, "Elevation", Forest = median_forest, HFI = median_HFI, Dist_Water = median_dist_water, se.fit = FALSE)
+
+# Forest effect on lambda at median elevation
+forest_effect <- effectfun(fit_bears, "Forest", Elevation = median_elev, HFI = median_HFI, Dist_Water = median_dist_water, se.fit = FALSE)
+
+# Dist_Water effect on lambda at median HFI
+dist_water_effect <- effectfun(fit_bears, "Dist_Water", HFI = median_HFI, Elevation = median_elev, Forest = median_forest, se.fit = FALSE)
+
+# HFI effect on lambda at median Dist_Water
+HFI_effect <- effectfun(fit_bears, "HFI", Dist_Water = median_dist_water, Elevation = median_elev, Forest = median_forest, se.fit = FALSE)
+
+# Elevational effect on lambda at median HFI
+elev_effect_on_HFI <- effectfun(fit_bears, "Elevation", HFI = median_HFI, Dist_Water = median_dist_water, Forest = median_forest, se.fit = FALSE)
+
+# Elevational effect on lambda at median Dist_Water
+elev_effect_on_dist_water <- effectfun(fit_bears, "Elevation", Dist_Water = median_dist_water, HFI = median_HFI, Forest = median_forest, se.fit = FALSE)
+
+# Forest effect on lambda at median HFI
+forest_effect_on_HFI <- effectfun(fit_bears, "Forest", HFI = median_HFI, Dist_Water = median_dist_water, Elevation = median_elev, se.fit = FALSE)
+
+# Forest effect on lambda at median Dist_Water
+forest_effect_on_dist_water <- effectfun(fit_bears, "Forest", Dist_Water = median_dist_water, HFI = median_HFI, Elevation = median_elev, se.fit = FALSE)
+
+# HFI effect on lambda at median forest
+HFI_effect_on_forest <- effectfun(fit_bears, "HFI", Forest = median_forest, Dist_Water = median_dist_water, Elevation = median_elev, se.fit = FALSE)
+
+# Dist_Water effect on lambda at median forest
+dist_water_effect_on_forest <- effectfun(fit_bears, "Dist_Water", Forest = median_forest, HFI = median_HFI, Elevation = median_elev, se.fit = FALSE)
+
+# HFI effect on lambda at median elevation
+HFI_effect_on_elev <- effectfun(fit_bears, "HFI", Elevation = median_elev, Dist_Water = median_dist_water, Forest = median_forest, se.fit = FALSE)
+
+# Dist_Water effect on lambda at median elevation
+dist_water_effect_on_elev <- effectfun(fit_bears, "Dist_Water", Elevation = median_elev, HFI = median_HFI, Forest = median_forest, se.fit = FALSE)
+
+
+
+# Side by side plotting
+par(mfrow = c(6,2))
+# Adjust margins
+par(mar = c(0.5, 0.5, 0.5, 0.5))  # Adjust margins: bottom, left, top, right
+# Adjust inner margins
+par(mai = c(0.1, 0.1, 0.1, 0.1))  # Adjust inner margins: bottom, left, top, right
+# Adjust outer margins to control spacing between plots
+# par(oma = c(1, 1, 1, 1))  # Adjust outer margins: bottom, left, top, right
+
+# Plot the elevation effect 
+plot(elev_effect,
+     legend = FALSE,
+     main = "Effect of Elevation at Median Forest")
+
+# Plot the forest effect 
+plot(forest_effect,
+     legend = FALSE,
+     main = "Effect of Forest at Median Elevation")
+
+# Plot the Dist_Water effect on median HFI
+plot(dist_water_effect,
+     legend = FALSE,
+     main = "Effect of Dist_Water at Median HFI")
+
+# Plot the HFI effect on median Dist_Water
+plot(HFI_effect,
+     legend = FALSE,
+     main = "Effect of HFI at Median Dist_Water")
+
+# Plot the elevational effect on median HFI
+plot(elev_effect_on_HFI,
+     legend = FALSE,
+     main = "Effect of Elevation at Median HFI")
+
+# Plot the HFI effect on median Dist_Water
+plot(elev_effect_on_dist_water,
+     legend = FALSE,
+     main = "Effect of Elevation at Median Dist_Water")
+
+# Plot the forest effect on median HFI
+plot(forest_effect_on_HFI,
+     legend = FALSE,
+     main = "Effect of Forest at Median HFI")
+
+# Plot the forest effect on median Dist_Water
+plot(forest_effect_on_dist_water,
+     legend = FALSE,
+     main = "Effect of Forest at Median Dist_Water")
+
+# Plot the HFI effect on median Forest
+plot(HFI_effect_on_forest,
+     legend = FALSE,
+     main = "Effect of HFI at Median Forest")
+
+# Plot the HFI effect on median Elevation
+plot(HFI_effect_on_elev,
+     legend = FALSE,
+     main = "Effect of HFI at Median Elevation")
+
+# Plot the Dist_Water effect on median Forest
+plot(dist_water_effect_on_forest,
+     legend = FALSE,
+     main = "Effect of Dist_Water at Median Forest")
+
+# Plot the Dist_Water effect on median Elevation
+plot(dist_water_effect_on_elev,
+     legend = FALSE,
+     main = "Effect of Dist_Water at Median Elevation")
+
+# Reset inner margins to default
+par(mai = c(0.5, 0.5, 0.1, 0.1))  # Reset inner margins to default
+# Reset outer margins to default
+par(oma = c(0, 0, 0, 0))  # Reset outer margins to default
+```
+
+**Test whether the observed data deviate significantly from the model predictions.**
+```{r}
+# Run the quadrat test
+quadrat.test(fit_bears, nx = 4, ny = 2)
+```
+
+**Calculate and plot the model residuals.**
+```{r}
+# Calculate the residuals
+res_bears <- residuals(fit_bears)
+
+# Visualise
+plot(res_bears,
+     cols = "transparent")
+```
+
+**Calculate the partial residuals as a function of both elevation and forest cover.**
+```{r}
+# Calculate the partial residuals as a function of elevation
+par_res_bears_elev <- parres(fit_bears, "Elevation")
+
+# Calculate the relative intensity as a function of forest
+par_res_bears_forest <- parres(fit_bears, "Forest")
+
+# Calculate the partial residuals as a function of HFI
+par_res_bears_HFI <- parres(fit_bears, "HFI")
+
+# Calculate the relative intensity as a function of Dist_Water
+par_res_bears_dist_water <- parres(fit_bears, "Dist_Water")
+
+# Side by side plotting
+par(mfrow = c(2,2))
+plot(par_res_bears_elev,
+     legend = FALSE,
+     lwd = 2,
+     main = "",
+     xlab = "Elevation (m)")
+plot(par_res_bears_forest,
+     legend = FALSE,
+     lwd = 2,
+     main = "",
+     xlab = "Forest (% coverage)")
+plot(par_res_bears_HFI,
+     legend = FALSE,
+     lwd = 2,
+     main = "",
+     xlab = "HFI")
+plot(par_res_bears_dist_water,
+     legend = FALSE,
+     lwd = 2,
+     main = "",
+     xlab = "Dist_Water (m)")
+```
+
+
+
+
