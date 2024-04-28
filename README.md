@@ -9,3 +9,5 @@
 
 `occurrence.txt` file contains the information necessary for analysis  
 - this contains all the occurrences for the american black bear (***Ursus-americanus-pallas***)
+
+![Point Patterns of Bears & Park Locations](img/point_pattern_parks_bears.png)
